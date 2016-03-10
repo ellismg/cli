@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using Microsoft.DotNet.Cli.Build.Framework;
 using Microsoft.Extensions.PlatformAbstractions;
@@ -42,6 +43,10 @@ namespace Microsoft.DotNet.Cli.Build
             File.Delete(Path.Combine(SharedFrameworkNameAndVersionRoot, "framework.dll"));
             File.Delete(Path.Combine(SharedFrameworkNameAndVersionRoot, "framework.pdb"));
 
+            // Publish already places the crossgen'd version of mscorlib into the output, so we can
+            // remove the IL version
+            File.Delete(Path.Combine(SharedFrameworkNameAndVersionRoot, "mscorlib.dll"));
+
             // Rename the .deps file
             File.Move(Path.Combine(SharedFrameworkNameAndVersionRoot, "framework.deps"), Path.Combine(SharedFrameworkNameAndVersionRoot, $"{SharedFrameworkName}.deps"));
 
@@ -50,6 +55,8 @@ namespace Microsoft.DotNet.Cli.Build
 
             // hostpolicy will be renamed to dotnet at some point and then this can be removed.
             File.Move(Path.Combine(SharedFrameworkNameAndVersionRoot, $"{Constants.DynamicLibPrefix}hostpolicy{Constants.DynamicLibSuffix}"), Path.Combine(SharedFrameworkNameAndVersionRoot, $"{Constants.DynamicLibPrefix}dotnethostimpl{Constants.DynamicLibSuffix}"));
+
+            CrossGenAllManagedAssemblies(SharedFrameworkNameAndVersionRoot);
 
             return c.Success();
         }
@@ -98,6 +105,48 @@ namespace Microsoft.DotNet.Cli.Build
             }
 
             return null;
+        }
+
+        private static void CrossGenAllManagedAssemblies(string pathToAssemblies)
+        {
+            foreach (var file in Directory.GetFiles(pathToAssemblies))
+            {
+                string fileName = Path.GetFileName(file);
+
+                if (fileName == "mscorlib.dll" || fileName == "mscorlib.ni.dll" || !HasMetadata(file))
+                {
+                    continue;
+                }
+
+                string tempPathName = Path.ChangeExtension(file, "readytorun");
+
+                // This is not always correct. The version of crossgen we need to pick up is whatever one was restored as part
+                // of the Microsoft.NETCore.Runtime.CoreCLR package that is part of the shared library. For now, the version hardcoded
+                // in CompileTargets and the one in the shared library project.json match and are updated in lock step, but long term
+                // we need to be able to look at the project.lock.json file and figure out what version of Microsoft.NETCore.Runtime.CoreCLR
+                // was used, and then select that version.
+                ExecSilent(Crossgen.GetCrossgenPathForVersion(CompileTargets.CoreCLRVersion),
+                    "-readytorun", "-in", file, "-out", tempPathName, "-platform_assemblies_paths", pathToAssemblies);                  
+
+                File.Delete(file);
+                File.Move(tempPathName, file);
+            }
+        }
+
+        private static bool HasMetadata(string pathToFile)
+        {
+            try
+            {
+                using (var inStream = File.OpenRead(pathToFile))
+                {
+                    using (var peReader = new PEReader(inStream))
+                    {
+                        return peReader.HasMetadata;
+                    }
+                }
+            } catch (BadImageFormatException) { }
+
+            return false;
         }
     }
 }
