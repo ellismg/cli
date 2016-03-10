@@ -76,8 +76,18 @@ namespace Microsoft.DotNet.Cli.Build
             var debFile = c.BuildContext.Get<string>("SdkInstallerFile");
             var manPagesDir = Path.Combine(Dirs.RepoRoot, "Documentation", "manpages");
 
+            var objRoot = Path.Combine(Dirs.Output, "obj", "debian", "sdk");
+
+            if (Directory.Exists(objRoot))
+            {
+                Directory.Delete(objRoot, true);
+            }
+
+            Directory.CreateDirectory(objRoot);
+
             Cmd(Path.Combine(Dirs.RepoRoot, "scripts", "package", "package-debian.sh"),
-                "-v", version, "-i", Dirs.Stage2, "-o", debFile, "-p", packageName, "-m", manPagesDir, "-c", channel)
+                    "-v", version, "-i", Dirs.Stage2, "-o", debFile, "-p", packageName, "-m", manPagesDir, "-c", channel,
+                    "--obj-root", objRoot)
                     .Execute()
                     .EnsureSuccessful();
             return c.Success();
