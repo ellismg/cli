@@ -33,10 +33,16 @@ namespace Microsoft.DotNet.Cli.Build
                     break;
                default:
                     throw new Exception($"Unknown channel - {channel}");
-                    break;
             }
 
             return packageName;
+        }
+
+        public static string GetDebianSharedFrameworkPackageName(BuildTargetContext c)
+        {
+            var sharedFrameworkNugetVersion = c.BuildContext.Get<string>("SharedFrameworkNugetVersion");
+
+            return $"dotnet-sharedframework-{SharedFrameworkTargets.SharedFrameworkName}-{sharedFrameworkNugetVersion}".ToLower();
         }
 
         public static string GetOSShortName()
