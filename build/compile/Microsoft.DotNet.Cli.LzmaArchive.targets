@@ -6,7 +6,8 @@
                               GenerateNuGetPackagesArchive;
                               UploadNuGetPackagesArchiveToAzure"
             Inputs="$(IntermediateArchive)"
-            Outputs="$(FinalArchive)">
+            Outputs="$(FinalArchive)"
+            Condition=" '$(IncludeNuGetPackageArchive)' != 'false' ">
       <Copy SourceFiles="$(IntermediateArchive)" DestinationFiles="$(FinalArchive)" />
     </Target>
 
